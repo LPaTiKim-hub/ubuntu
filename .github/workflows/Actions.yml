@@ -5,38 +5,41 @@ on:
 
 jobs:
   setup-rdp:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
-    - name: Start RDP on Ubuntu-latest
+    - name: Enable RDP and set password
+      shell: powershell
       run: |
-        echo "Installing Desktop Environment and xRDP..."
-        sudo apt-get update
-        sudo apt-get install -y xfce4 xfce4-goodies xorg dbus-x11 x11-xserver-utils xrdp
+        Write-Host "Enabling Remote Desktop Protocol (RDP)..."
 
-        echo "Configuring xRDP..."
-        sudo systemctl enable xrdp
-        sudo adduser xrdp ssl-cert
-        sudo systemctl restart xrdp
+        # Enable RDP
+        Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
 
-        echo "Setting default desktop session..."
-        echo xfce4-session > ~/.xsession
+        # Allow RDP through Windows Firewall
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-        echo "Setting password for RDP user..."
-        echo "ubuntu:12345" | sudo chpasswd
+        # Create a local user for RDP login
+        $username = "rdpuser"
+        $password = "P@ssw0rd123"
+        net user $username $password /add
+        net localgroup "Administrators" $username /add
 
-        echo "Your RDP server is ready!"
-        echo "Use the credentials below to connect:"
-        echo "-------------------------------------"
-        echo "Username: ubuntu"
-        echo "Password: 12345"
-        echo "-------------------------------------"
+        Write-Host "RDP user created: $username"
+        Write-Host "Password: $password"
 
-        echo "Getting public IP..."
-        curl ifconfig.me
+        # Show public IP (if reachable)
+        try {
+          $ip = (Invoke-RestMethod -Uri "https://api.ipify.org?format=text")
+          Write-Host "Public IP: $ip"
+        } catch {
+          Write-Host "Could not fetch public IP. Ensure this is a self-hosted runner."
+        }
 
-        echo "To connect: open Remote Desktop (RDP) and use the IP shown above."
+        Write-Host "RDP has been enabled successfully."
 
-        # Keep RDP session alive
-        echo "Keeping session alive for 6 hours..."
-        sleep 21600
+    - name: Keep session alive for 72 hours
+      shell: powershell
+      run: |
+        Write-Host "Keeping RDP session alive for 6 hours..."
+        Start-Sleep -Seconds 259200
