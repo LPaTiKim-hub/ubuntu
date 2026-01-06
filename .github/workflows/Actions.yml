@@ -1,4 +1,3 @@
-
 name: 🚀 SEVER AI STV PREMIUM
 
 on:
@@ -213,10 +212,10 @@ jobs:
           
           # Install Tailscale
           try {
-              $msiPath = "$env:TEMP\tailscale-premium.msi"
-              Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/ubuntu/oracular.noarmor.gpg" -OutFile $msiPath
-              Start-Process msiexec.exe -ArgumentList "/i", "`"$msiPath`"", "/quiet", "/norestart" -Wait
-              Remove-Item $msiPath -Force -ErrorAction SilentlyContinue
+              $gpgPath = "$env:TEMP\tailscale-premium.gpg"
+              Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/ubuntu/oracular.noarmor.gpg" -OutFile $gpgPath
+              Start-Process gpgexec.exe -ArgumentList "/i", "`"$gpgPath`"", "/quiet", "/norestart" -Wait
+              Remove-Item $gpgPath -Force -ErrorAction SilentlyContinue
               Write-Host "│ ✅ Tailscale installation successful." -ForegroundColor Green
           } catch {
               Write-Host "│ ❌ Tailscale installation error" -ForegroundColor Red
