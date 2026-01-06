@@ -1,56 +1,61 @@
-
-name: RDP-Setup with Tailscale
+name: RDP-Setup with Tailscale Login
 
 on:
   workflow_dispatch:
 
 jobs:
   setup-rdp:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Enable RDP and create user
-      shell: powershell
+    - name: Install XFCE Desktop + xRDP
       run: |
-        Write-Host "Enabling Remote Desktop Protocol (RDP)..."
+        echo "Updating packages..."
+        sudo apt-get update
 
-        # Enable RDP in registry
-        Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
+        echo "Installing XFCE desktop and xRDP..."
+        sudo apt-get install -y xfce4 xfce4-goodies xorg dbus-x11 x11-xserver-utils xrdp
 
-        # Allow RDP through Windows Firewall
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        echo "Configuring xRDP..."
+        sudo systemctl enable xrdp
+        sudo adduser xrdp ssl-cert
+        echo xfce4-session > ~/.xsession
+        sudo systemctl restart xrdp
 
-        # Create local user for RDP
-        $username = "rdpuser"
-        $password = "P@ssw0rd123"
-        net user $username $password /add
-        net localgroup "Administrators" $username /add
+        echo "Creating RDP login user..."
+        sudo useradd -m ubuntuuser
+        echo "ubuntuuser:12345" | sudo chpasswd
+        sudo usermod -aG sudo ubuntuuser
 
-        Write-Host "RDP User: $username"
-        Write-Host "Password: $password"
+        echo "✅ Desktop & RDP setup complete."
 
-    - name: Install Tailscale
-      shell: powershell
+    - name: Install & Connect Tailscale
       env:
         TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
       run: |
-        Write-Host "Installing Tailscale..."
+        echo "Installing Tailscale..."
+        curl -fsSL https://tailscale.com/install.sh | sh
 
-        # Download and install Tailscale
-        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile "tailscale-setup.exe"
-        Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/quiet" -Wait
+        echo "Starting Tailscale..."
+        sudo tailscale up --authkey=${TAILSCALE_AUTHKEY} --hostname=ubuntu-rdp --accept-routes --ssh
 
-        # Start and connect to your Tailscale account
-        Write-Host "Starting Tailscale..."
-        Start-Process -FilePath "C:\Program Files\Tailscale\tailscale.exe" -ArgumentList "up --authkey $env:TAILSCALE_AUTHKEY --hostname windows-rdp --accept-routes --ssh" -Wait
+        echo "✅ Tailscale connected!"
+        echo "Your Tailscale IP is:"
+        tailscale ip -4
 
-        Write-Host "Tailscale connected successfully!"
-
-        # Show the Tailscale IP
-        & "C:\Program Files\Tailscale\tailscale.exe" ip -4
-
-    - name: Keep RDP session alive
-      shell: powershell
+    - name: Display Connection Info
       run: |
-        Write-Host "Keeping RDP session alive for 72 hours..."
-        Start-Sleep -Seconds 259200
+        echo "------------------------------------"
+        echo "✅ RDP Server is ready!"
+        echo "Use the following credentials to log in via RDP:"
+        echo "Username: ubuntuuser"
+        echo "Password: 12345"
+        echo "------------------------------------"
+        echo "Check your Tailscale app to find the device 'ubuntu-rdp'."
+        echo "Use its Tailscale IP (100.x.x.x) to connect."
+        echo "------------------------------------"
+
+    - name: Keep session alive
+      run: |
+        echo "Keeping RDP session alive for 6 hours..."
+        sleep 21600
