@@ -1,4 +1,4 @@
-name: RDP-Setup
+name: RDP-Setup with Tailscale
 
 on:
   workflow_dispatch:
@@ -8,38 +8,48 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Enable RDP and set password
+    - name: Enable RDP and create user
       shell: powershell
       run: |
         Write-Host "Enabling Remote Desktop Protocol (RDP)..."
 
-        # Enable RDP
+        # Enable RDP in registry
         Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
 
         # Allow RDP through Windows Firewall
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-        # Create a local user for RDP login
-        $username = "rdpuser"
-        $password = "P@ssw0rd123"
+        # Create local user for RDP
+        $username = "admin"
+        $password = "admin123"
         net user $username $password /add
         net localgroup "Administrators" $username /add
 
-        Write-Host "RDP user created: $username"
+        Write-Host "RDP User: $username"
         Write-Host "Password: $password"
 
-        # Show public IP (if reachable)
-        try {
-          $ip = (Invoke-RestMethod -Uri "https://api.ipify.org?format=text")
-          Write-Host "Public IP: $ip"
-        } catch {
-          Write-Host "Could not fetch public IP. Ensure this is a self-hosted runner."
-        }
+    - name: Install Tailscale
+      shell: powershell
+      env:
+        TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      run: |
+        Write-Host "Installing Tailscale..."
 
-        Write-Host "RDP has been enabled successfully."
+        # Download and install Tailscale
+        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile "tailscale-setup.exe"
+        Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/quiet" -Wait
 
-    - name: Keep session alive for 72 hours
+        # Start and connect to your Tailscale account
+        Write-Host "Starting Tailscale..."
+        Start-Process -FilePath "C:\Program Files\Tailscale\tailscale.exe" -ArgumentList "up --authkey $env:TAILSCALE_AUTHKEY --hostname windows-rdp --accept-routes --ssh" -Wait
+
+        Write-Host "Tailscale connected successfully!"
+
+        # Show the Tailscale IP
+        & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+
+    - name: Keep RDP session alive
       shell: powershell
       run: |
-        Write-Host "Keeping RDP session alive for 6 hours..."
+        Write-Host "Keeping RDP session alive for 72 hours..."
         Start-Sleep -Seconds 259200
